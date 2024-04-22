@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { PokeApiPokemon } from "../types/pokeApiPokemon";
 import api from "../utils/axios";
-import { Grid, Card, CardContent, Typography, useMediaQuery } from "@mui/material";
+import { Grid, Card, CardContent, Typography } from "@mui/material";
 import { PokemonModal } from "./PokemonModal";
 
 export default function PokemonCard({ url, inTime }: { url: string, inTime:boolean }) {
