@@ -1,26 +1,24 @@
-import { SelectChangeEvent, Container, Grid, TextField, Select, MenuItem, Button, Box, Card, CardContent, Typography } from "@mui/material";
+import { SelectChangeEvent, Container, Grid, TextField, Select, MenuItem, Button, Box, } from "@mui/material";
 import { useEffect, useState } from "react";
-import { PokemonModal } from "../components/PokemonModal";
-import { useTypesData } from "../hooks/useTypesData";
-import { Pokemon, QueryPokemonsResult } from "../types/pokemons";
 import api from "../utils/axios";
 import FooterNavigation from "../components/FooterNavigation";
 import { ArrowBack, ArrowForward, Search } from "@mui/icons-material";
+import { PokeApiTypes, QueryPokeAPiResult } from "../types/pokeApi";
+import PokemonCard from "../components/PokemonCard";
+
+type PokemonQueryResult = {
+    name: string,
+    url: string
+}
 
 function Home(): JSX.Element {
-    const { pokemonTypes } = useTypesData();
-    const [pokemons, setPokemons] = useState<Pokemon[]>([]);
+    const [pokemonTypes, setPokemonTypes] = useState<PokemonQueryResult[]>([]);
+    const [pokemons, setPokemons] = useState<PokemonQueryResult[]>([]);
     const [searchName, setSearchName] = useState<string>('')
     const [selectedType, setSelectedType] = useState<string>('');
-    const [selectedPokemon, setSelectedPokemon] = useState<Pokemon | null>(null);
     const [offset, setOffset] = useState(0);
-    const [timeSize, setTimeSize] = useState(0)
     const handleChangeType = (event: SelectChangeEvent) => {
         setSelectedType(event.target.value)
-    }
-
-    const handleCloseModal = () => {
-        setSelectedPokemon(null)
     }
 
     const handleNext = () => {
@@ -28,23 +26,40 @@ function Home(): JSX.Element {
     }
 
     const handlePrevious = () => {
-        setOffset(old => old + 20)
+        setOffset(old => old - 20)
     }
 
+    const handleSearchPokemons = () => {
+        if (selectedType.length > 0) {
+            getPokemonsFilterType()
+        } else {
+
+            getPokemons()
+        }
+    }
+
+    async function getPokemonTypes(): Promise<void> {
+        const response = await api.get<PokeApiTypes>(`https://pokeapi.co/api/v2/type`);
+        setPokemonTypes(response.data.results)
+    }
 
     async function getPokemons(): Promise<void> {
-        const response = await api.get<QueryPokemonsResult>(`/pokemons/name/%${searchName}%/type/${selectedType}`);
-        setPokemons(response.data.pokemons)
+        const response = await api.get<QueryPokeAPiResult>(`https://pokeapi.co/api/v2/pokemon/?offset=${offset}&limit=20`);
+        setPokemons(response.data.results)
     }
 
-    async function getTime(): Promise<void> {
-        const response = await api.get(`/time`);
-        setTimeSize(response.data.time.length)
+    async function getPokemonsFilterType(): Promise<void> {
+        const response = await api.get<{ pokemon: { pokemon: PokemonQueryResult }[] }>(`https://pokeapi.co/api/v2/type/${selectedType}`);
+        setPokemons(response.data.pokemon.map(pk => pk.pokemon))
     }
 
     useEffect(() => {
-        getTime();
-    }, [selectedPokemon])
+        getPokemonTypes()
+    }, [])
+
+    useEffect(() => {
+        handleSearchPokemons()
+    }, [offset])
 
     return (
         <>
@@ -76,7 +91,7 @@ function Home(): JSX.Element {
                                 }}
                             >
                                 <MenuItem value={''} >Todos</MenuItem>
-                                {pokemonTypes?.length ? pokemonTypes.map((item) => (<MenuItem value={item.name} key={item.id}>{item.name}</MenuItem>)) : <MenuItem value={""} >Sem Opções</MenuItem>}
+                                {pokemonTypes.map((item) => (<MenuItem value={item.name} key={item.name}>{item.name}</MenuItem>))}
                             </Select>
                         </Grid>
                         <Grid xs={12} item>
@@ -89,7 +104,7 @@ function Home(): JSX.Element {
                             }}
                                 fullWidth
                                 endIcon={<Search />}
-                                onClick={getPokemons}
+                                onClick={handleSearchPokemons}
                             >Pesquisar</Button>
                         </Grid>
                     </Grid>
@@ -104,43 +119,14 @@ function Home(): JSX.Element {
                                 }}
                             >
                                 <Grid xs={12} container item spacing={1}>
-                                    {pokemons.length ? pokemons.map((item) => {
-                                        const [{ sprite }] = item.sprites
-                                        const types = item.types.map(i => i.type.name).join(' / ');
-
-                                        return (
-                                            <Grid item xs={6}>
-
-                                                <Card>
-                                                    <button onClick={() => setSelectedPokemon(item)}>
-                                                        <CardContent>
-                                                            <Grid>
-                                                                <Typography variant='body1' fontWeight='bolder'>{item.name}</Typography>
-                                                            </Grid>
-                                                            <Grid>
-                                                                <img
-                                                                    srcSet={sprite}
-                                                                    src={sprite}
-                                                                    alt={item.name}
-                                                                    loading="lazy"
-                                                                />
-                                                            </Grid>
-                                                            <Grid>
-                                                                <Typography variant='caption'>{types}</Typography>
-                                                            </Grid>
-                                                        </CardContent>
-                                                    </button>
-                                                </Card>
-                                            </Grid>
-                                        )
-                                    }) : null}
+                                    {pokemons.length ? pokemons.map((item) => { return (item.name.includes(searchName) ? <PokemonCard url={item.url} inTime={false} /> : null) }) : null}
                                 </Grid>
                             </Box>
                         </Grid>
                         {pokemons.length > 0 && (<Grid xs={12} item>
                             <Button
                                 size="small"
-                                disabled={offset == 0}
+                                disabled={offset == 0 || selectedType.length > 0}
                                 onClick={handlePrevious}
                                 sx={{
                                     backgroundColor: '#404040',
@@ -154,6 +140,7 @@ function Home(): JSX.Element {
                             <Button
                                 size="small"
                                 onClick={handleNext}
+                                disabled={selectedType.length > 0}
                                 sx={{
                                     backgroundColor: '#404040',
                                     border: '#303030 5px solid',
@@ -169,7 +156,7 @@ function Home(): JSX.Element {
                         <FooterNavigation />
                     </Grid>
                 </Grid>
-                <PokemonModal isOpen={!!selectedPokemon} onClose={handleCloseModal} pokemonId={selectedPokemon?.id || 0}  timeSize={timeSize}/>
+
             </Container >
         </>
     )
